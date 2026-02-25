@@ -1,0 +1,32 @@
+{
+  "name": "supply-chain",
+  "version": "1.0.0",
+  "description": "Web tool for supply chain",
+  "license": "ISC",
+  "author": "Omar Roselli",
+  "type": "module",
+  "main": "app.js",
+  "scripts": {
+    "start_server": "node --watch src/app.js"
+  },
+  "dependencies": {
+    "@hubspot/api-client": "^13.0.0",
+    "bcrypt": "^6.0.0",
+    "connect-mongo": "^5.1.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.1",
+    "express": "^5.1.0",
+    "express-session": "^1.18.1",
+    "mongoose": "^8.16.1",
+    "multer": "^2.0.2",
+    "node-fetch": "^3.3.2",
+    "p-limit": "^7.1.0",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-local": "^1.0.0",
+    "pdfkit": "^0.17.1",
+    "pdfkit-table": "^0.1.99",
+    "undici": "^7.12.0"
+  }
+}
