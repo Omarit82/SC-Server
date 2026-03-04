@@ -6,6 +6,8 @@ export const getUser = (req,res) => {
         res.status(401).json({Message: "Usuario no autenticado"})
     }
 }
+
+
 export const getSession = (req,res) => {
     if(req.session){
         res.status(200).json({Session: req.session, Message: "Session obtenida"})
@@ -23,7 +25,7 @@ export const loginGoogle = async(req,res) => {
             avatar: req.user.avatar,
             rol: req.user.user
         }
-        res.redirect('http://localhost:5173/login');
+        res.redirect(`${process.env.URL_FRONT}/login`);
     } catch (error) {
         res.status(500).json({Message:"Server connection error"});
     }

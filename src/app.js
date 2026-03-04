@@ -22,7 +22,7 @@ app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.SESSION_CODE));
-app.use(cors({origin:'http://localhost:5173',credentials:true}));
+app.use(cors({origin:`${process.env.URL_FRONT}`,credentials:true}));
 app.use(session({
         name: 'connect.sid',
         store: MongoStore.create({mongoUrl:process.env.MONGO_URL,mongoOptions:{},ttl: 60*60*24*7}),
