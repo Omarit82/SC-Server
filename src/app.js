@@ -12,7 +12,10 @@ import passport from 'passport';
 import { closeDB, connectDB } from './Config/database.js';
 
 dotenv.config();
+
 connectDB();
+
+
 initializedPassport();
 const app = express();
 const PORT = process.env.PORT || 3000;

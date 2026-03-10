@@ -81,7 +81,27 @@ export const getLineItemFromDeal = async(req,res) => {
         res.status(500).json({Message:"Error en getLineItem",Details: error.message})
     }
 }
-export const updateTask = async(req,res) => {
+export const endTask = async (req,res) => {
+    try {
+        const id = req.params.id;
+        const status = req.body.status;     
+        console.log("id: "+id+" status: "+status);
+        const tarea = await safeHubspotCall(()=>req.hubClient.apiRequest({
+            method:"PATCH",
+            path:`/engagements/v1/engagements/${id}`,
+            body: {
+                engagement:{id:id},
+                metadata:{
+                    status:`${status}`
+                }
+            }
+        }));
+        res.status(200).json({Message:"Tarea Finalizada", CODE:tarea.status});
+    } catch (error) {
+        res.status(error.statusCode || 500).json({Message:"Error en lowTask",Details: error.message})
+    }
+}
+export const updatePriorityTask = async(req,res) => {
     try {
         const id = req.params.id;
         const priority = req.body.priority;
@@ -102,6 +122,8 @@ export const updateTask = async(req,res) => {
 }
 
 export const updateDeal = async (req,res) => {
+    console.log(req.body);
+    
     try {
         const envioInfo = await safeHubspotCall(()=> req.hubClient.crm.deals.basicApi.update(req.body.dealId,{
             properties:{
