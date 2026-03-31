@@ -42,12 +42,29 @@ export const companiesProperties = async(req,res) => {
         res.status(500).json({Message: "Error en companiesProperties",Details:error.message});
     }
 }
-/************************************************************************************/
 
 export const listadoProductos = async(req,res) => {
     try {
-        const resultado = await safeHubspotCall(()=>req.hubClient.crm.products.basicApi.getPage(100,undefined,['name','info_uno_id','description','hs_product_id']));
-        res.status(200).json({Payload:resultado.results});
+        const all = [];
+        let after = undefined;
+        let siguiente = true;
+        while(siguiente){
+            const resultado = await safeHubspotCall(
+                () => req.hubClient.crm.products.basicApi.getPage(
+                    100,
+                    undefined,
+                    ['name','info_uno_id','description','hs_product_id']
+                )
+            );
+            all.push(...resultado.results);
+            if (resultado.paging && resultado.paging.next) {
+                after = resultado.paging.next.after;
+            } else {
+                siguiente = false;
+            }
+        }
+        
+        res.status(200).json({Payload:all,Quantity:all.length});
     } catch (error) {
         res.status(500).json({Message:"Error al obtener el listado de productos.",Details:error.message});
     }
@@ -140,7 +157,7 @@ export const updateDeal = async (req,res) => {
 export const getTask = async(req,res) => {
     try {
         const id = req.params.id;
-        const ownerId = req.params.ownerId;        
+        const ownerId = req.params.ownerId||null;        
         const tasks = await safeHubspotCall(()=> req.hubClient.crm.deals.basicApi.getById(id,undefined,undefined,['tasks'],undefined,undefined,undefined));
         const limit = pLimit(5);
         const tarea = await Promise.all(
@@ -198,53 +215,110 @@ export const despachosReales = async(req,res) => {
                 'hs_primary_associated_company'
             ]
         }
-        const deals = await safeHubspotCall(()=> req.hubClient.crm.deals.searchApi.doSearch(request)); 
-        /***Tarea de cada deal***/           
-        // deals.results.map(async dl => {
-        //     let task = await hub.crm.deals.basicApi.getById(dl.id,undefined,undefined,['tasks'],undefined,undefined,undefined)//.filter(task => task.id == '50141006');
-        //     console.log(task);                
-        // })
-        
+        const deals = await safeHubspotCall(()=> req.hubClient.crm.deals.searchApi.doSearch(request));         
         res.status(200).json({Deals:deals.results,paging:deals.paging})
     } catch (error) {
         res.status(500).json({Message:error});
     }
 }
 
-export const dealsAnalitics = async(req,res) => {
+
+// Función auxiliar para esperar (opcional si el rate limit es muy estricto)
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+export const dealsAnalitics = async (req, res) => {
     try {
-        const limit = parseInt(req.query.pageSize) || 20;
-        const after = req.query.after || undefined;
-        const request = {
-            limit,
-            after,
-            sorts:[
-                {
-                    propertyName:"closedate",
-                    direction: "DESCENDING"
-                },
-            ],
-            properties: ["dealname","amount","createdate","closedate","hs_primary_associated_company"]
+        const limit = parseInt(req.query.pageSize) || 100;
+        let after = req.query.after || undefined;
+        if (after === "undefined" || after === "null" || !after) {
+            after = undefined;
         }
-        const deals = await safeHubspotCall(()=> req.hubClient.crm.deals.searchApi.doSearch(request));   
-        const companyIds = deals.results
-            .map(d =>d.properties.hs_primary_associated_company)
-            .filter(id => !!id);
-        let companies = {};
-        const companiesResp = await req.hubClient.crm.companies.batchApi.read({
-            inputs:companyIds.map(id=>({id})),
-            properties:["name","domain"]
+        const fechas = req.query.fechas ? JSON.parse(req.query.fechas) : null;
+        const filters = [];
+    
+        const STAGE_ACUERDOS_COMERCIALES_APROBADOS = '80401557';
+        const STAGE_DESPACHADOS_SIN_COBRAR = '71065978';
+        const STAGE_PROPUESTA_ACEPTADA ='67052576';
+        const REPARACIONES='34803074';
+        const PIPELINE_V1='2509056';
+        const PIPELINE_AMIAR='741510706';
+        const STAGE_NEGOCIOS_CERRADOS ='71114253';
+
+        filters.push({ 
+            propertyName: 'dealstage', 
+            operator: 'IN', 
+            values: [STAGE_NEGOCIOS_CERRADOS,STAGE_PROPUESTA_ACEPTADA,STAGE_DESPACHADOS_SIN_COBRAR,STAGE_ACUERDOS_COMERCIALES_APROBADOS]
         });
-        companiesResp.results.forEach(c=>{companies[c.id]=c.properties}); 
-        const dealsWithCompany = deals.results.map(d =>({
+        filters.push({
+            "propertyName": "closedate",
+            "operator": "HAS_PROPERTY"
+        });
+        filters.push({ 
+            propertyName: 'pipeline', 
+            operator: 'NOT_IN', 
+            values:[PIPELINE_V1,PIPELINE_AMIAR,REPARACIONES]
+        });
+        if (fechas?.fechaDesde) {
+            filters.push({ propertyName: 'closedate', operator: 'GTE', value: new Date(fechas.fechaDesde).getTime() });
+        }
+        if (fechas?.fechaHasta) {
+            filters.push({ propertyName: 'closedate', operator: 'LTE', value: new Date(fechas.fechaHasta).getTime() });
+        }
+        const request = {
+            filterGroups: filters.length > 0 ? [{ filters }] : [],
+            sorts: [{ propertyName: "closedate", direction: "DESCENDING" }],
+            properties: ["dealname", "amount", "createdate", "closedate", "hs_primary_associated_company"],
+            limit,
+            after
+        };
+        let allDeals = [];
+        let hasNextPage = true;
+        let resultado = null;
+        if (filters.length !== 3) {
+            while (hasNextPage) {
+                resultado = await safeHubspotCall(() => req.hubClient.crm.deals.searchApi.doSearch(request));
+                allDeals.push(...resultado.results);
+                if (resultado.paging?.next?.after) {
+                    request.after = resultado.paging.next.after; 
+                    await delay(100); 
+                } else {
+                    hasNextPage = false;
+                }
+            }
+        } else {
+            resultado = await safeHubspotCall(() => req.hubClient.crm.deals.searchApi.doSearch(request));
+            allDeals = resultado.results;
+        }
+        if (!allDeals || allDeals.length === 0) {
+            return res.status(200).json({ Deals: [], paging: null });
+        }
+        const companyIds = [...new Set(allDeals.map(d => d.properties.hs_primary_associated_company).filter(id => !!id))];
+        let companiesMap = {};
+        for (let i = 0; i < companyIds.length; i += 100) {
+            const batch = companyIds.slice(i, i + 100);
+            const companiesResp = await req.hubClient.crm.companies.batchApi.read({
+                inputs: batch.map(id => ({ id })),
+                properties: ["name", "domain","city","state","cuit___tax_id","razon_social"]
+            });
+            
+            companiesResp.results.forEach(c => {
+                companiesMap[c.id] = c.properties;
+            });
+        }
+        const dealsWithCompany = allDeals.map(d => ({
             ...d,
-            company: companies[d.properties.hs_primary_associated_company] || null
-        }))
-        res.status(200).json({Deals:dealsWithCompany,paging:deals.paging||null});
+            company: companiesMap[d.properties.hs_primary_associated_company] || null
+        }));
+        res.status(200).json({ 
+            Deals: dealsWithCompany, 
+            totalCount: dealsWithCompany.length,
+            paging:resultado.paging||null
+        });
     } catch (error) {
-        res.status(500).json({Message:"Error al obtener los deals para analitics",Error:error});
+        console.error("HubSpot Detail Error:", error.response?.body || error);
+        res.status(500).json({ Message: "Error al obtener los deals", Error: error.message });
     }
-}
+};
 
 export const getDeals = async(req,res) => {
     try {
