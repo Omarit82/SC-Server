@@ -181,7 +181,7 @@ export const getTask = async(req,res) => {
         const filtradas =tarea.filter( aux => aux?.properties?.hubspot_owner_id === ownerId);
         res.status(200).json({Task:filtradas})
     } catch (error) {
-        res.status(500).json({Message:"Error de conexion al realizar getTask"})
+        res.status(500).json({Message:"Error de conexion al realizar getTask", Error: error})
     }
 }
 
@@ -324,6 +324,8 @@ export const getDeals = async(req,res) => {
     try {
         const dealstage = req.params.stage;
         let despachado = req.params.completed;
+        let userId = req.query.userId;
+        console.log(userId); /*A partir del usuario pasado, obtenidos los deals, filtro por tareas y devuelvo los deals.*/ 
         despachado = JSON.parse(despachado);           
         let prop;
         if(despachado){
