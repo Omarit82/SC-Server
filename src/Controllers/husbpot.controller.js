@@ -142,7 +142,7 @@ export const updateDeal = async (req,res) => {
     console.log(req.body);
     
     try {
-        const envioInfo = await safeHubspotCall(()=> req.hubClient.crm.deals.basicApi.update(req.body.dealId,{
+        await safeHubspotCall(()=> req.hubClient.crm.deals.basicApi.update(req.body.dealId,{
             properties:{
                 observaciones_para_produccion: req.body.observaciones,
                 numero_de_remito: req.body.remito,
@@ -154,6 +154,60 @@ export const updateDeal = async (req,res) => {
         res.status(error.statusCode || 500).json({Message:"Error en updateTaks",Details: error.message})
     }
 }
+export const getDeals = async(req,res) => {
+    try {
+        const dealstage = req.params.stage;
+        let despachado = req.params.completed;
+        despachado = JSON.parse(despachado);           
+        let prop;
+        if(despachado){
+            prop = "HAS_PROPERTY" 
+        }else{
+            prop ="NOT_HAS_PROPERTY"
+        }
+        const deals = await safeHubspotCall(()=> req.hubClient.crm.deals.searchApi.doSearch({
+            filterGroups: [{
+                filters: [
+                        {
+                            propertyName: 'dealstage',
+                            operator: 'EQ',
+                            value: dealstage // SE PASO A ENVIAR Y SE GENERÓ LA TAREA DE PROD.
+                        },
+                        {
+                            propertyName:'despachado',
+                            operator: prop 
+                        },
+                    ]
+                }
+            ],
+            sorts: ['createdAt'],
+            properties: [
+                'dealname',
+                'pipeline',
+                'observaciones_para_produccion',
+                'numero_de_remito',
+                'datos_para_envio',
+                'cantidad_citymesh__autocalculada_',
+                'cantidad_de_equipos',
+                'description',
+                'despachado',
+                'nro_de_guia_del_envio',
+                'propuesta_comercial',
+                'hs_num_of_associated_line_items',
+                'hs_deal_amount_calculation_preference',
+                'hs_primary_associated_company'
+            ],
+            limit: 100,
+            after: 0,
+            
+        }));
+        res.status(200).json({Deals:deals});
+    } catch (error) {
+        res.status(500).json({Message:"Error en getDeals",Details:error.message})
+    }
+}
+
+
 export const getTask = async(req,res) => {
     try {
         const id = req.params.id;
@@ -320,60 +374,7 @@ export const dealsAnalitics = async (req, res) => {
     }
 };
 
-export const getDeals = async(req,res) => {
-    try {
-        const dealstage = req.params.stage;
-        let despachado = req.params.completed;
-        let userId = req.query.userId;
-        console.log(userId); /*A partir del usuario pasado, obtenidos los deals, filtro por tareas y devuelvo los deals.*/ 
-        despachado = JSON.parse(despachado);           
-        let prop;
-        if(despachado){
-            prop = "HAS_PROPERTY" 
-        }else{
-            prop ="NOT_HAS_PROPERTY"
-        }
-        const deals = await safeHubspotCall(()=> req.hubClient.crm.deals.searchApi.doSearch({
-            filterGroups: [{
-                filters: [
-                        {
-                            propertyName: 'dealstage',
-                            operator: 'EQ',
-                            value: dealstage // SE PASO A ENVIAR Y SE GENERÓ LA TAREA DE PROD.
-                        },
-                        {
-                            propertyName:'despachado',
-                            operator: prop 
-                        },
-                    ]
-                }
-            ],
-            sorts: ['createdAt'],
-            properties: [
-                'dealname',
-                'pipeline',
-                'observaciones_para_produccion',
-                'numero_de_remito',
-                'datos_para_envio',
-                'cantidad_citymesh__autocalculada_',
-                'cantidad_de_equipos',
-                'description',
-                'despachado',
-                'nro_de_guia_del_envio',
-                'propuesta_comercial',
-                'hs_num_of_associated_line_items',
-                'hs_deal_amount_calculation_preference',
-                'hs_primary_associated_company'
-            ],
-            limit: 100,
-            after: 0,
-            
-        }));
-        res.status(200).json({Deals:deals});
-    } catch (error) {
-        res.status(500).json({Message:"Error en getDeals",Details:error.message})
-    }
-}
+
 
 export const hubspotConnection = (req,res) => {
     try {
